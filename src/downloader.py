@@ -1,47 +1,67 @@
 import yt_dlp
 import os
-import ffmpeg
+from pathlib import Path
+import re
+import unicodedata
+from looper import loop
 
-output_folder = "./../downloads"
+tmp_output_folder = "./../tmp"
 tmp_file = "raw_audio.mp3"
 
 
+
+def sanitize_filename(name: str, max_length: int = 120) -> str:
+
+    # 1. Normalize unicode (é → e, emojis removed)
+    name = unicodedata.normalize("NFKD", name)
+    name = name.encode("ascii", "ignore").decode("ascii")
+
+    # 2. Remove path separators explicitly
+    name = name.replace("/", "_").replace("\\", "_")
+
+    # 3. Replace whitespace with underscore
+    name = re.sub(r"\s+", "_", name)
+
+    # 4. Remove everything except safe characters
+    name = re.sub(r"[^a-zA-Z0-9._-]", "", name)
+
+    # 5. Collapse multiple underscores or dots
+    name = re.sub(r"[_\.]{2,}", "_", name)
+
+    # 6. Trim leading/trailing separators
+    name = name.strip("._-")
+
+    # 7. Enforce length limit
+    if len(name) > max_length:
+        name = name[:max_length].rstrip("._-")
+
+    # 8. Fallback if empty
+    if not name:
+        name = "audio"
+
+    return name
+
 def download_audio(link):
-  with yt_dlp.YoutubeDL({'extract_audio': True, 'format': 'bestaudio', 'outtmpl': output_folder + "/" + tmp_file}) as video:
-    info_dict = video.extract_info(link, download = True)
-    file_name = info_dict["title"]
-    path = output_folder + "/" + tmp_file
-    if os.path.isfile(path) and os.path.getsize(path) > 0:
-      os.rename(path, output_folder + "/" + file_name + ".mp3")
-      print("Successfully Downloaded - see local download folder", output_folder + "/" + file_name)
-      loop(output_folder + "/" + file_name + ".mp3")
-    else:
-      return "Something went wrong during the download"    
+  try:
+    with yt_dlp.YoutubeDL({
+      'extract_audio': True, 'format': 'bestaudio', 
+      'outtmpl': tmp_output_folder + "/" + tmp_file}) as video:
+      info_dict = video.extract_info(link, download = True)
+  except Exception as e:
+      print("Error during download:")
+      print(e)
+      return None
+  file_name = sanitize_filename(info_dict["title"])
+  path = tmp_output_folder + "/" + tmp_file
+  if os.path.isfile(path) and os.path.getsize(path) > 0:
+    os.rename(path, tmp_output_folder + "/" + file_name + ".mp3")
+    print("Successfully Downloaded - see local download folder", tmp_output_folder + "/" + file_name )
+    output = loop(tmp_output_folder + "/" + file_name + ".mp3")
+    return output
+  else:
+      print("Downloaded file missing or empty.")
+      return None    
     
      
-def loop(input):
 
-  OUTPUT = "./../downloads/loop_30m.mp3"
 
-  TARGET_SECONDS = 30 * 60
-  FADE_IN = 0.2          # seconds
-  FADE_OUT = 0.4         # seconds
-
-  (
-      ffmpeg
-      .input(input, stream_loop=-1)
-      .output(
-          OUTPUT,
-          t=TARGET_SECONDS,
-          af=(
-              f"afade=t=in:st=0:d={FADE_IN},"
-              f"afade=t=out:st={TARGET_SECONDS - FADE_OUT}:d={FADE_OUT}"
-          ),
-          acodec="libmp3lame",
-          audio_bitrate="192k"
-      )
-      .overwrite_output()
-      .run()
-  )
-
-download_audio('https://youtu.be/HsUjBw_auZw')
