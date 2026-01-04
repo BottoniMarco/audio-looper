@@ -1,0 +1,17 @@
+# venv stuff accidentally in repo root
+bin/
+include/
+lib/
+lib64/
+share/
+pyvenv.cfg
+
+# env secrets
+.env
+.env*/
+
+# python cache
+__pycache__/
+*.py[cod]
+
+downloads/
