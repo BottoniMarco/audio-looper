@@ -1,66 +1,55 @@
 import yt_dlp
 import os
 from pathlib import Path
-import re
-import unicodedata
 from looper import loop
+from utils import ensure_dirs,sanitize_filename,cleanup_tmp_files,PROJECT_ROOT, TMP_DIR, DOWNLOADS_DIR
 
-tmp_output_folder = "./../tmp"
-tmp_file = "raw_audio.mp3"
+def download_audio(link: str) -> str | None:
+  ensure_dirs()
 
+  tmp_base = TMP_DIR / "raw_audio"
+  tmp_part = TMP_DIR / "raw_audio.part"
+  tmp_final = TMP_DIR / "raw_audio.download" 
 
+  if tmp_part.exists():
+    tmp_part.unlink()
 
-def sanitize_filename(name: str, max_length: int = 120) -> str:
+  ydl_opts = {
+    "format": "bestaudio",
+    "outtmpl": str(tmp_final), 
+    "noplaylist": True,
+}
 
-    # 1. Normalize unicode (é → e, emojis removed)
-    name = unicodedata.normalize("NFKD", name)
-    name = name.encode("ascii", "ignore").decode("ascii")
-
-    # 2. Remove path separators explicitly
-    name = name.replace("/", "_").replace("\\", "_")
-
-    # 3. Replace whitespace with underscore
-    name = re.sub(r"\s+", "_", name)
-
-    # 4. Remove everything except safe characters
-    name = re.sub(r"[^a-zA-Z0-9._-]", "", name)
-
-    # 5. Collapse multiple underscores or dots
-    name = re.sub(r"[_\.]{2,}", "_", name)
-
-    # 6. Trim leading/trailing separators
-    name = name.strip("._-")
-
-    # 7. Enforce length limit
-    if len(name) > max_length:
-        name = name[:max_length].rstrip("._-")
-
-    # 8. Fallback if empty
-    if not name:
-        name = "audio"
-
-    return name
-
-def download_audio(link):
   try:
-    with yt_dlp.YoutubeDL({
-      'extract_audio': True, 'format': 'bestaudio', 
-      'outtmpl': tmp_output_folder + "/" + tmp_file}) as video:
+    with yt_dlp.YoutubeDL(ydl_opts) as video:
+      cleanup_tmp_files()
       info_dict = video.extract_info(link, download = True)
+  except KeyboardInterrupt:
+    print("Download cancelled by the user")
+    cleanup_tmp_files()
+    return None
   except Exception as e:
-      print("Error during download:")
-      print(e)
-      return None
-  file_name = sanitize_filename(info_dict["title"])
-  path = tmp_output_folder + "/" + tmp_file
-  if os.path.isfile(path) and os.path.getsize(path) > 0:
-    os.rename(path, tmp_output_folder + "/" + file_name + ".mp3")
-    print("Successfully Downloaded - see local download folder", tmp_output_folder + "/" + file_name )
-    output = loop(tmp_output_folder + "/" + file_name + ".mp3")
-    return output
-  else:
-      print("Downloaded file missing or empty.")
-      return None    
+    print("Error during download:")
+    print(e)
+    cleanup_tmp_files()
+    return None
+ 
+  if not tmp_final.exists() or tmp_final.stat().st_size == 0:
+    print("Downloaded file missing or empty.")
+    cleanup_tmp_files()
+    return None
+
+  title = sanitize_filename(info_dict.get("title", "audio"))
+  final_path = TMP_DIR / f"{title}.download" 
+
+
+  if final_path.exists():
+      final_path.unlink()
+
+  tmp_final.rename(final_path)
+
+  print("Downloaded to:", final_path)
+  return str(final_path)
     
      
 
