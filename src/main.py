@@ -5,8 +5,6 @@ from utils import ensure_dirs,sanitize_filename, PROJECT_ROOT, TMP_DIR, DOWNLOAD
 import inquirer
 
 def main():
-    ensure_dirs()
-
     link = input("Insert URL: ").strip()
     if not link:
         print("Empty URL.")

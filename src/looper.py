@@ -60,8 +60,7 @@ def loop(input_path: str, minutes: int) -> str | None:
 
     part_out.rename(final_out)
 
-    # Only delete input after success
-    Path(input_path).unlink(missing_ok=True)
+    cleanup_tmp_files()
 
     print("Saved:", final_out)
     return str(final_out)
