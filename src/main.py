@@ -14,7 +14,7 @@ def main():
         inquirer.List(
             "minutes",
             message="How long should the loop be (minutes)?",
-            choices=["30", "60", "90", "180"],
+            choices=["30", "45", "60", "90", "180"],
         )
     ]
     answers = inquirer.prompt(questions)
